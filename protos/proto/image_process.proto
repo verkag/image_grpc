@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+service ImageService {
+    rpc UploadAndProcess(ImageRequest) returns (ImageResponse); 
+}
+
+message ImageRequest {
+    string fileanme = 1;
+    bytes image_data = 2;
+    string transformation = 3;
+}
+
+message ImageResponse {
+    string filename = 1;
+    bytes processed_image = 2;
+}
