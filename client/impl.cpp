@@ -44,6 +44,14 @@ void ImageProcessClient::LoadImage(const std::string& name, const std::string& p
     return; 
 }
 
+void ImageProcessClient::Remove(const std::string& name) {
+    pqxx::work tx(conn_);
+    tx.exec("DELETE FROM paths WHERE name = $1", pqxx::params(name));
+    tx.commit();
+    
+    storage_.erase(name);
+}
+
 
 void ImageProcessClient::List() {
     for (const auto& [k, v] : storage_) {

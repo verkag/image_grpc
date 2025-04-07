@@ -15,6 +15,7 @@ public:
 
     void Transform(const std::string& name, const std::string& transformation);
     void LoadImage(const std::string& name, const std::string& path); 
+    void Remove(const std::string& name);
     void List();
 private: 
     std::unique_ptr<ImageService::Stub> stub_;
