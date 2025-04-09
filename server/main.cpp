@@ -14,7 +14,7 @@ int main() {
 
     LOG(INFO) << "Starting server...";
     
-    std::string svr_address("localhost:5555");  // Changed from localhost to 0.0.0.0 to listen on all interfaces
+    std::string svr_address("localhost:5555");  
     ImageProcessImpl service;
 
     grpc::ServerBuilder builder;

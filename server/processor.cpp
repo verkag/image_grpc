@@ -15,8 +15,6 @@ static cv::Mat decode(const std::string& data) {
     return cv::imdecode(buffer, cv::IMREAD_COLOR);
 }
 
-
-
 ImageTransformator::ImageTransformator(const std::string& data, const imageservice::Transformation& transformation) 
     : transformation_(transformation) {
     img_ = decode(data);

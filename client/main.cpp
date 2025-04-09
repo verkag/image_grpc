@@ -1,8 +1,3 @@
-// client side has its own db which contains key-value fields name-path for images
-// ./client load name_of_the_image /path/to/image (load name-path pair to the db) 
-// ./client list (list all pairs name-path)
-// ./client transform name_of_the_image the_transformation (apply the transformation to the image)
-
 #include <iostream>
 #include <memory>
 #include <string>
@@ -56,15 +51,14 @@ int main(int argc, char** argv) {
     std::string transformation = absl::GetFlag(FLAGS_transformation);
 
     // Set maximum message size to 20MB
-    grpc::ChannelArguments args;
-    args.SetMaxReceiveMessageSize(20 * 1024 * 1024);  // 20MB
-    args.SetMaxSendMessageSize(20 * 1024 * 1024);     // 20MB
+    grpc::ChannelArguments ch_args;
+    ch_args.SetMaxReceiveMessageSize(20 * 1024 * 1024);  
+    ch_args.SetMaxSendMessageSize(20 * 1024 * 1024);     
 
-    // Create gRPC channel and client with the correct port and message size settings
     auto channel = grpc::CreateCustomChannel(
         "localhost:5555",
         grpc::InsecureChannelCredentials(),
-        args
+        ch_args
     );
     ImageProcessClient client(channel);
 

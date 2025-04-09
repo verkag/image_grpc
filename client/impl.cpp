@@ -5,11 +5,9 @@
 #include <sstream>
 #include "absl/log/log.h"
 
-// Helper function to parse transformation string and build a Transformation message
 static imageservice::Transformation ParseTransformation(const std::string& transform_str) {
     imageservice::Transformation transformation;
     
-    // Parse the transformation string
     std::string type;
     std::istringstream ss(transform_str);
     std::getline(ss, type, ':');
