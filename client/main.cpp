@@ -26,15 +26,20 @@ void PrintUsage() {
               << "   ./client --command=list\n\n"
               << "3. Transform an image:\n"
               << "   ./client --command=transform --name=<image_name> --transformation=<transformation>\n"
-              << "   Example: ./client --command=transform --name=cat --transformation=blur\n\n"
+              << "   Example: ./client --command=transform --name=cat --transformation=rotate:90\n\n"
               << "4. Remove an image:\n"
               << "   ./client --command=remove --name=<image_name>\n"
               << "   Example: ./client --command=remove --name=cat\n\n"
               << "Available transformations:\n"
-              << "   - blur: Apply Gaussian blur\n"
-              << "   - grayscale: Convert to grayscale\n"
-              << "   - edge: Detect edges\n"
-              << "   - resize: Resize image\n";
+              << "   - rotate:<angle_degrees>\n"
+              << "     Example: rotate:90\n\n"
+              << "   - resize:<width>x<height>\n"
+              << "     Example: resize:800x600\n\n" 
+              << "   - grayscale\n"
+              << "     Example: grayscale\n\n"
+              << "   - blur:<sigma>\n"
+              << "     Example: blur:2.5\n"
+              << "     Default: blur (uses sigma=1.5)\n";
 }
 
 int main(int argc, char** argv) {
@@ -50,8 +55,17 @@ int main(int argc, char** argv) {
     std::string path = absl::GetFlag(FLAGS_path);
     std::string transformation = absl::GetFlag(FLAGS_transformation);
 
-    // Create gRPC channel and client
-    auto channel = grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials());
+    // Set maximum message size to 20MB
+    grpc::ChannelArguments args;
+    args.SetMaxReceiveMessageSize(20 * 1024 * 1024);  // 20MB
+    args.SetMaxSendMessageSize(20 * 1024 * 1024);     // 20MB
+
+    // Create gRPC channel and client with the correct port and message size settings
+    auto channel = grpc::CreateCustomChannel(
+        "localhost:5555",
+        grpc::InsecureChannelCredentials(),
+        args
+    );
     ImageProcessClient client(channel);
 
     try {
@@ -71,9 +85,11 @@ int main(int argc, char** argv) {
             if (name.empty() || transformation.empty()) {
                 std::cerr << "Error: Missing required parameters for transform command\n"
                          << "Usage: ./client --command=transform --name=<image_name> --transformation=<transformation>\n"
-                         << "Example: ./client --command=transform --name=cat --transformation=blur\n"
-                         << "\nAvailable transformations: blur, grayscale, edge, resize\n";
-                return 1;
+                         << "Example: ./client --command=transform --name=cat --transformation=rotate:90\n\n"
+                         << "Available transformations:\n"
+                         << "  - rotate:<angle_degrees>\n"
+                         << "  - resize:<width>x<height>\n"
+                         << "  - grayscale\n";
             }
             client.Transform(name, transformation);
             std::cout << "Successfully applied transformation '" << transformation 

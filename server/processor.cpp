@@ -17,7 +17,8 @@ static cv::Mat decode(const std::string& data) {
 
 
 
-ImageTransformator::ImageTransformator(const std::string& data, const std::string& transformation) : transformation_(transformation) {
+ImageTransformator::ImageTransformator(const std::string& data, const imageservice::Transformation& transformation) 
+    : transformation_(transformation) {
     img_ = decode(data);
 }
 
@@ -34,27 +35,56 @@ void ImageTransformator::resize(int width, int height) {
     cv::resize(img_, img_, cv::Size(width, height), cv::INTER_LINEAR);
 }
 
+void ImageTransformator::grayscale() {
+    cv::cvtColor(img_, img_, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(img_, img_, cv::COLOR_GRAY2BGR);  // Convert back to 3 channels for consistency
+}
 
-// roate:90 resize:300x400  greyscale
+void ImageTransformator::blur(double sigma) {
+    cv::GaussianBlur(img_, img_, cv::Size(0, 0), sigma);
+}
+
 void ImageTransformator::apply_transformation() {
-    std::stringstream ss(transformation_);
-    std::string type;
-    std::getline(ss, type, ':');
-
-    if (type == "rotate") {
-        double angle;
-        ss >> angle;
-        return rotate(angle);
-    }
-    else if (type == "resize") {
-        int w, h;
-        char x; 
-        ss >> w >> x >> h;
-        return resize(w, h);
-    }
-    else {
-        LOG(INFO) << "match not found";
-        return;
+    LOG(INFO) << "Applying transformation type: " << transformation_.type();
+    
+    switch (transformation_.type()) {
+        case imageservice::TransformationType::ROTATE:
+            if (transformation_.has_rotate()) {
+                LOG(INFO) << "Rotating image by " << transformation_.rotate().angle() << " degrees";
+                rotate(transformation_.rotate().angle());
+            } else {
+                LOG(ERROR) << "Rotation parameters missing";
+            }
+            break;
+            
+        case imageservice::TransformationType::RESIZE:
+            if (transformation_.has_resize()) {
+                LOG(INFO) << "Resizing image to " << transformation_.resize().width() 
+                         << "x" << transformation_.resize().height();
+                resize(transformation_.resize().width(), transformation_.resize().height());
+            } else {
+                LOG(ERROR) << "Resize parameters missing";
+            }
+            break;
+            
+        case imageservice::TransformationType::GRAYSCALE:
+            LOG(INFO) << "Converting image to grayscale";
+            grayscale();
+            break;
+            
+        case imageservice::TransformationType::BLUR:
+            if (transformation_.has_blur()) {
+                LOG(INFO) << "Blurring image with sigma: " << transformation_.blur().sigma();
+                blur(transformation_.blur().sigma());
+            } else {
+                LOG(INFO) << "Using default blur parameters";
+                blur(1.5);  // Default sigma value
+            }
+            break;
+            
+        default:
+            LOG(ERROR) << "Unknown transformation type: " << transformation_.type();
+            break;
     }
 }
 

@@ -1,16 +1,51 @@
 syntax = "proto3";
 
+package imageservice;
+
 service ImageService {
     rpc UploadAndProcess(ImageRequest) returns (ImageResponse); 
 }
 
+enum TransformationType {
+    UNKNOWN = 0;
+    ROTATE = 1;
+    RESIZE = 2;
+    GRAYSCALE = 3;
+    BLUR = 4;
+}
+
+// Specific transformation parameters
+message RotateParams {
+    double angle = 1;
+}
+
+message ResizeParams {
+    int32 width = 1;
+    int32 height = 2;
+}
+
+message BlurParams {
+    double sigma = 1;  // Gaussian blur sigma parameter
+}
+
+// No specific parameters needed for grayscale
+
+message Transformation {
+    TransformationType type = 1;
+    oneof params {
+        RotateParams rotate = 2;
+        ResizeParams resize = 3;
+        BlurParams blur = 4;
+    }
+}
+
 message ImageRequest {
-    string fileanme = 1;
+    string filename = 1;
     bytes image_data = 2;
-    string transformation = 3;
+    Transformation transformation = 3;
 }
 
 message ImageResponse {
     string filename = 1;
-    bytes processed_image = 2;
+    bytes processed_image_data = 2;
 }

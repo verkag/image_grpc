@@ -18,7 +18,7 @@ public:
     void Remove(const std::string& name);
     void List();
 private: 
-    std::unique_ptr<ImageService::Stub> stub_;
+    std::unique_ptr<imageservice::ImageService::Stub> stub_;
     std::unordered_map<std::string, std::string> storage_;
     pqxx::connection conn_;
 };
