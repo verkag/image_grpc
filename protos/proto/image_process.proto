@@ -4,6 +4,7 @@ package imageservice;
 
 service ImageService {
     rpc UploadAndProcess(ImageRequest) returns (ImageResponse); 
+    rpc UploadAndProcessChunked(stream ImageMessageChunked) returns (stream ImageMessageChunked);
 }
 
 enum TransformationType {
@@ -48,4 +49,20 @@ message ImageRequest {
 message ImageResponse {
     string filename = 1;
     bytes processed_image_data = 2;
+}
+
+message ImageMessageChunked {
+    oneof content { 
+        ImageMetaData meta = 1;
+        Chunk chunk = 2;        
+    }
+}
+
+message ImageMetaData {
+    Transformation transformation = 1;
+    string filename = 2;
+}
+
+message Chunk {
+    bytes data = 1;
 }

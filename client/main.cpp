@@ -20,8 +20,8 @@ void PrintUsage() {
               << "2. List all images:\n"
               << "   ./client --command=list\n\n"
               << "3. Transform an image:\n"
-              << "   ./client --command=transform --name=<image_name> --transformation=<transformation>\n"
-              << "   Example: ./client --command=transform --name=cat --transformation=rotate:90\n\n"
+              << "   ./client --command=(chunk-)transform --name=<image_name> --transformation=<transformation>\n"
+              << "   Example: ./client --command=(chunk-)transform --name=cat --transformation=rotate:90\n\n"
               << "4. Remove an image:\n"
               << "   ./client --command=remove --name=<image_name>\n"
               << "   Example: ./client --command=remove --name=cat\n\n"
@@ -86,6 +86,19 @@ int main(int argc, char** argv) {
                          << "  - grayscale\n";
             }
             client.Transform(name, transformation);
+            std::cout << "Successfully applied transformation '" << transformation 
+                      << "' to image '" << name << "'" << std::endl;
+        } else if (command == "chunk-transform") {
+            if (name.empty() || transformation.empty()) {
+                std::cerr << "Error: Missing required parameters for transform command\n"
+                         << "Usage: ./client --command=chunk-transform --name=<image_name> --transformation=<transformation>\n"
+                         << "Example: ./client --command=chunk-transform --name=cat --transformation=rotate:90\n\n"
+                         << "Available transformations:\n"
+                         << "  - rotate:<angle_degrees>\n"
+                         << "  - resize:<width>x<height>\n"
+                         << "  - grayscale\n";
+            }
+            client.TransformChunked(name, transformation);
             std::cout << "Successfully applied transformation '" << transformation 
                       << "' to image '" << name << "'" << std::endl;
         } else if (command == "remove") {

@@ -54,7 +54,9 @@ static imageservice::Transformation ParseTransformation(const std::string& trans
     return transformation;
 }
 
-static imageservice::ImageRequest MakeRequest(const std::string& name, const std::vector<uchar> buff, const std::string& transform_str) {
+static imageservice::ImageRequest MakeRequest(const std::string& name,
+                                              const std::vector<uchar> buff,
+                                              const std::string& transform_str) {
     imageservice::ImageRequest req;
     req.set_filename(name);
     req.set_image_data(buff.data(), buff.size()); 
@@ -64,7 +66,9 @@ static imageservice::ImageRequest MakeRequest(const std::string& name, const std
     return req; //GOD please make it RVO
 }
 
-ImageProcessClient::ImageProcessClient(std::shared_ptr<grpc::Channel> ch) : stub_(imageservice::ImageService::NewStub(ch)), conn_("dbname=image_service user=verkag password=123zxc") {
+ImageProcessClient::ImageProcessClient(std::shared_ptr<grpc::Channel> ch) : 
+    stub_(imageservice::ImageService::NewStub(ch)), 
+    conn_("dbname=image_service user=verkag password=123zxc") {
     pqxx::work tx(conn_); 
     pqxx::result r = tx.exec("SELECT * FROM paths");
     tx.commit();
@@ -74,7 +78,7 @@ ImageProcessClient::ImageProcessClient(std::shared_ptr<grpc::Channel> ch) : stub
     }
 }
 
-void ImageProcessClient::Transform(const std::string& name, const std::string& transformation) {
+std::vector<uchar> ImageProcessClient::ReadAndEncode(const std::string& name) {
     LOG(INFO) << "Starting transform for image: " << name;
     
     if (storage_.find(name) == storage_.end()) { // to be refactored 
@@ -93,12 +97,99 @@ void ImageProcessClient::Transform(const std::string& name, const std::string& t
     std::string ext = name.substr(name.size() - 4);
     cv::imencode(ext, m, buff);
     LOG(INFO) << "Image encoded, size: " << buff.size() << " bytes";
+    return buff;
+}
+
+std::vector<imageservice::ImageMessageChunked> ImageProcessClient::Chunkify(
+    const std::vector<uchar>& buff, const std::string& name, const std::string& transformation) {
+    LOG(INFO) << "Start Chunkifying";
+    std::vector<imageservice::ImageMessageChunked> message_buff;
+
+    imageservice::ImageMessageChunked meta;
+    meta.mutable_meta()->set_filename(name);
+    *meta.mutable_meta()->mutable_transformation() = ParseTransformation(transformation); 
+    message_buff.push_back(meta); 
+     
+    LOG(INFO) << "Meta is set";
     
+    for (size_t offset = 0; offset < buff.size(); offset += CHUNK_SIZE) {
+        LOG(INFO) << "offset: " << offset;
+        imageservice::ImageMessageChunked temp;
+        size_t chunk_size = std::min(CHUNK_SIZE, buff.size() - offset);
+        LOG(INFO) << "chunk size: " << chunk_size;
+        temp.mutable_chunk()->set_data(reinterpret_cast<const char*>(&buff[offset]), chunk_size);
+        message_buff.push_back(std::move(temp));
+    }
+
+    return message_buff;
+}
+
+void ImageProcessClient::TransformChunked(const std::string& name, const std::string& transformation) {
+    std::vector<uchar> buff = ReadAndEncode(name);
+
+    grpc::ClientContext cctx;
+    std::shared_ptr<grpc::ClientReaderWriter<imageservice::ImageMessageChunked,
+        imageservice::ImageMessageChunked>> stream(stub_->UploadAndProcessChunked(&cctx));
+    LOG(INFO) << "stream initialized";
+    std::vector<imageservice::ImageMessageChunked> message_buffer = Chunkify(buff, name, transformation);
+    LOG(INFO) << "chunkified";
+
+    try {
+        for (auto const& mess : message_buffer) {
+            stream->Write(mess);
+            LOG(INFO) << "chunk sent";
+        }
+        stream->WritesDone();
+        message_buffer.clear();    
+
+        imageservice::ImageMessageChunked temp;
+        while (stream->Read(&temp)) {
+            LOG(INFO) << "Chunk has been read"; 
+            message_buffer.push_back(std::move(temp));
+        }
+
+        LOG(INFO) << "All read"; 
+
+        grpc::Status status = stream->Finish();
+
+        if (status.ok()) {
+            LOG(INFO) << "Request processed successfully";
+
+            std::string foo;
+            imageservice::ImageMessageChunked meta = message_buffer[0];
+            foo.reserve(message_buffer.size() * CHUNK_SIZE);
+            for (int i = 1; i < message_buffer.size(); i++) {
+                foo += message_buffer[i].chunk().data();
+            }
+
+            LOG(INFO) << "Response filename: " << meta.meta().filename();
+            LOG(INFO) << "Transformation applied: " << meta.meta().transformation().type();
+
+            std::vector<uchar> buff(foo.begin(), foo.end());
+            cv::Mat m = cv::imdecode(buff, cv::IMREAD_COLOR);
+            std::string ext = name.substr(name.size() - 4);
+            cv::imwrite(name.substr(0, name.size() - 4) + "_processed" + ext, m);
+            LOG(INFO) << "Processed image saved to: " << name.substr(0, name.size() - 4) + "_processed" + ext;
+        } else {
+            LOG(ERROR) << "Request failed: " << status.error_message();
+            throw std::runtime_error(status.error_message());
+        }
+
+    } catch (const std::exception& e) {
+        LOG(ERROR) << e.what();
+    }
+
+}
+
+void ImageProcessClient::Transform(const std::string& name, const std::string& transformation) {
+    std::vector<uchar> buff = ReadAndEncode(name); 
+
     grpc::ClientContext cctx;
     imageservice::ImageRequest req = MakeRequest(name, buff, transformation);
     LOG(INFO) << "Sending request to server...";
     
     imageservice::ImageResponse res;
+
     grpc::Status status = stub_->UploadAndProcess(&cctx, req, &res);
 
     if (status.ok()) {
@@ -108,6 +199,7 @@ void ImageProcessClient::Transform(const std::string& name, const std::string& t
         
         std::vector<uchar> buff(res.processed_image_data().begin(), res.processed_image_data().end());
         cv::Mat m = cv::imdecode(buff, cv::IMREAD_COLOR);
+        std::string ext = name.substr(name.size() - 4);
         cv::imwrite(name.substr(0, name.size() - 4) + "_processed" + ext, m);
         LOG(INFO) << "Processed image saved to: " << name.substr(0, name.size() - 4) + "_processed" + ext;
     } else {
